@@ -7,68 +7,69 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/metakeule/fmtdate"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type Day struct {
-	Shows []Show
-	Date  Date
+type day struct {
+	Shows []show
+	Date  date
 }
-type Date struct {
+type date struct {
 	DayLiteral string    `json:"day"`
 	Date       time.Time `json:"date"`
 }
-type Show struct {
+type show struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	ImgURL      string `json:"imgUrl"`
 	ShowTimes   map[string]time.Time
 	currently   bool
 }
-type Scrapper struct {
-	Url string
+type scrapper struct {
+	URL *url.URL
 }
 
-var Channels = map[string]string{"mbc2": "http://www.mbc.net/ar/mbc2/grid.channel-mbc1-me.programtype-all.html", "mbcmasr": "http://www.mbc.net/ar/mbc2/grid.channel-mbc-masr.programtype-all.html"}
-var Days = map[string]string{"Sat": "", "Sun": "", "Mon": "", "Tue": "", "Wed": "", "Thu": "", "Fri": ""}
+var channels = map[string]string{"mbc2": "http://www.mbc.net/ar/mbc2/grid.channel-mbc1-me.programtype-all.html", "mbcmasr": "http://www.mbc.net/ar/mbc2/grid.channel-mbc-masr.programtype-all.html"}
+var days = map[string]string{"Sat": "", "Sun": "", "Mon": "", "Tue": "", "Wed": "", "Thu": "", "Fri": ""}
 
-func (scrapper *Scrapper) Scrap() []Day {
-	var allShows [][]Show
-	var dates []Date
-	var days []Day
+func (scrapper *scrapper) Scrap() []day {
+	var allShows [][]show
+	var dates []date
+	var days []day
 	c := colly.NewCollector(
 		colly.UserAgent(uarand.GetRandom()),
 	)
 	c.OnHTML("ol.text-box-toc li", func(element *colly.HTMLElement) {
-		date := strings.TrimSpace(strings.Replace(strings.Replace(element.Text, "\n", "", -1), "  ", "", -1))
-		finDate := Date{}
-		if strings.Contains(date, "السبت") {
+		strDate := strings.TrimSpace(strings.Replace(strings.Replace(element.Text, "\n", "", -1), "  ", "", -1))
+		finDate := date{}
+		if strings.Contains(strDate, "السبت") {
 			finDate.DayLiteral = "Sat"
-			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(date, "السبت", "", -1)))
-		} else if strings.Contains(date, "الأحد") {
+			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(strDate, "السبت", "", -1)))
+		} else if strings.Contains(strDate, "الأحد") {
 			finDate.DayLiteral = "Sun"
-			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(date, "الأحد", "", -1)))
-		} else if strings.Contains(date, "الاثنين") {
+			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(strDate, "الأحد", "", -1)))
+		} else if strings.Contains(strDate, "الاثنين") {
 			finDate.DayLiteral = "Mon"
-			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(date, "الاثنين", "", -1)))
-		} else if strings.Contains(date, "الثلاثاء") {
+			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(strDate, "الاثنين", "", -1)))
+		} else if strings.Contains(strDate, "الثلاثاء") {
 			finDate.DayLiteral = "Tue"
-			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(date, "الثلاثاء", "", -1)))
-		} else if strings.Contains(date, "الأربعاء") {
+			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(strDate, "الثلاثاء", "", -1)))
+		} else if strings.Contains(strDate, "الأربعاء") {
 			finDate.DayLiteral = "Wed"
-			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(date, "الأربعاء", "", -1)))
-		} else if strings.Contains(date, "الخميس") {
+			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(strDate, "الأربعاء", "", -1)))
+		} else if strings.Contains(strDate, "الخميس") {
 			finDate.DayLiteral = "Thu"
-			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(date, "الخميس", "", -1)))
-		} else if strings.Contains(date, "الجمعة") {
+			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(strDate, "الخميس", "", -1)))
+		} else if strings.Contains(strDate, "الجمعة") {
 			finDate.DayLiteral = "Fri"
-			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(date, "الجمعة", "", -1)))
+			finDate.Date, _ = fmtdate.Parse("DD/MM/YYYY", strings.TrimSpace(strings.Replace(strDate, "الجمعة", "", -1)))
 		}
 		dates = append(dates, finDate)
 	})
-	c.Visit(scrapper.Url)
+	c.Visit(scrapper.URL.String())
 	for i := 0; i < 7; i++ {
 		c := colly.NewCollector(
 			colly.UserAgent(uarand.GetRandom()),
@@ -78,7 +79,7 @@ func (scrapper *Scrapper) Scrap() []Day {
 		var titles []string
 		var descriptions []string
 		var states []bool
-		var shows []Show
+		var shows []show
 		c.OnHTML("#tab-1-"+strconv.Itoa(i)+"-b6a2c45e-9bb2-427f-9f33-2d78a9efa4ca", func(element *colly.HTMLElement) {
 			element.ForEach("div.archttl", func(i int, element *colly.HTMLElement) {
 				element.ForEach("img", func(i int, element *colly.HTMLElement) {
@@ -115,30 +116,31 @@ func (scrapper *Scrapper) Scrap() []Day {
 				}
 			})
 		})
-		c.Visit(scrapper.Url)
+		c.Visit(scrapper.URL.String())
 		for i := 0; i < len(titles); i++ {
-			shows = append(shows, Show{Title: titles[i], Description: descriptions[i], ImgURL: imgUrls[i], currently: states[i], ShowTimes: playTimes[i]})
+			shows = append(shows, show{Title: titles[i], Description: descriptions[i], ImgURL: imgUrls[i], currently: states[i], ShowTimes: playTimes[i]})
 		}
 		if len(shows) != 0 {
 			allShows = append(allShows, shows)
 		}
 	}
 	for i := 0; i < 7; i++ {
-		days = append(days, Day{allShows[i], dates[i]})
+		days = append(days, day{allShows[i], dates[i]})
 	}
 	return days
 }
 func currentlyDisplaying(w http.ResponseWriter, r *http.Request) {
-	scrper := &Scrapper{}
+	scrper := &scrapper{}
 	params := mux.Vars(r)
-	value, ok := Channels[params["channel"]]
+	value, ok := channels[params["channel"]]
 	if ok {
-		scrper.Url = value
+		parsedURL, _ := url.Parse(value)
+		scrper.URL = parsedURL
 		w.Header().Set("Content-Type", "application/json")
 		for _, day := range scrper.Scrap() {
-			for _, show := range day.Shows {
-				if show.currently {
-					json.NewEncoder(w).Encode(show)
+			for _, aShow := range day.Shows {
+				if aShow.currently {
+					json.NewEncoder(w).Encode(aShow)
 				}
 			}
 		}
@@ -148,14 +150,15 @@ func currentlyDisplaying(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func dayShows(w http.ResponseWriter, r *http.Request) {
-	scrper := &Scrapper{}
+	scrper := &scrapper{}
 	params := mux.Vars(r)
-	value, ok := Channels[params["channel"]]
+	value, ok := channels[params["channel"]]
 	if ok {
-		scrper.Url = value
+		parsedURL, _ := url.Parse(value)
+		scrper.URL = parsedURL
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("encoding", "utf-8")
-		_, dayExists := Days[params["day"]]
+		_, dayExists := days[params["day"]]
 		if dayExists {
 			for _, day := range scrper.Scrap() {
 				if day.Date.DayLiteral == params["day"] {
@@ -171,11 +174,12 @@ func dayShows(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func wholeWeek(w http.ResponseWriter, r *http.Request) {
-	scrper := &Scrapper{}
+	scrper := &scrapper{}
 	params := mux.Vars(r)
-	value, ok := Channels[params["channel"]]
+	value, ok := channels[params["channel"]]
 	if ok {
-		scrper.Url = value
+		parsedURL, _ := url.Parse(value)
+		scrper.URL = parsedURL
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("encoding", "utf-8")
 		json.NewEncoder(w).Encode(scrper.Scrap())
